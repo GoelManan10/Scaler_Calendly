@@ -1,0 +1,91 @@
+// Prisma Schema for Calendly-like Scheduling Application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EventType {
+  id           Int       @id @default(autoincrement())
+  name         String
+  duration     Int       // Duration in minutes
+  slug         String    @unique
+  bufferBefore Int       @default(0) @map("buffer_before")  // Buffer time in minutes before meeting
+  bufferAfter  Int       @default(0) @map("buffer_after")   // Buffer time in minutes after meeting
+  questions    String?   // JSON string of custom invitee questions
+  scheduleId   Int       @default(1) @map("schedule_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  schedule     Schedule  @relation(fields: [scheduleId], references: [id])
+  bookings     Booking[]
+
+  @@map("event_types")
+}
+
+model Schedule {
+  id             Int            @id @default(autoincrement())
+  name           String         @default("Working hours")
+  isDefault      Boolean        @default(true) @map("is_default")
+  timezone       String         @default("UTC")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  
+  availabilities Availability[]
+  dateOverrides  DateOverride[]
+  eventTypes     EventType[]
+
+  @@map("schedules")
+}
+
+model Availability {
+  id         Int      @id @default(autoincrement())
+  scheduleId Int      @default(1) @map("schedule_id")
+  dayOfWeek  Int      @map("day_of_week") // 0 = Sunday, 6 = Saturday
+  startTime  String   @map("start_time")  // Format: "HH:mm" (24-hour)
+  endTime    String   @map("end_time")    // Format: "HH:mm" (24-hour)
+  timezone   String   @default("UTC")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@map("availabilities")
+}
+
+model DateOverride {
+  id         Int      @id @default(autoincrement())
+  scheduleId Int      @default(1) @map("schedule_id")
+  date       DateTime @db.Date           // The specific date to override
+  startTime  String?  @map("start_time") // null = unavailable that day
+  endTime    String?  @map("end_time")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, date])
+  @@map("date_overrides")
+}
+
+model Booking {
+  id              Int       @id @default(autoincrement())
+  eventTypeId     Int       @map("event_type_id")
+  name            String
+  email           String
+  date            DateTime  @db.Date
+  time            String    // Format: "HH:mm" (24-hour)
+  status          String    @default("confirmed") // confirmed, cancelled, rescheduled
+  answers         String?   // JSON string of answers to custom questions
+  rescheduledFrom Int?      @map("rescheduled_from") // ID of original booking if rescheduled
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  eventType EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+
+  @@map("bookings")
+}
