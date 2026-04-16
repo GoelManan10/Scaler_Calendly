@@ -1,10 +1,12 @@
 require("dotenv").config();
 
 const express = require("express");
-const path = require("path");
 const cors = require("cors");
+const path = require("path");
+
 const errorHandler = require("./middleware/errorHandler");
 
+// Route imports
 const eventRoutes = require("./routes/eventRoutes");
 const availabilityRoutes = require("./routes/availabilityRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
@@ -14,7 +16,10 @@ const scheduleRoutes = require("./routes/scheduleRoutes");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// ─── Global Middleware ───────────────────────────────────────────────
+app.use(cors({
+  origin: "*"
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -29,51 +34,39 @@ app.use("/api/schedules", scheduleRoutes);
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
-    message: "Calendly API is running",
+    message: "Calendly API is running 🚀",
     version: "1.0.0",
   });
 });
 
-// ─── Serve React Frontend in Production ──────────────────────────────
-if (process.env.NODE_ENV === "production") {
-  const clientBuildPath = path.join(__dirname, "client", "dist");
-  app.use(express.static(clientBuildPath));
+// ─── Serve Frontend (React Build) ────────────────────────────────────
+const __dirnameResolved = path.resolve();
 
-  // Any route that doesn't match /api/* gets the React index.html (SPA)
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(clientBuildPath, "index.html"));
-  });
-} else {
-  app.get("/", (req, res) => {
-    res.json({
-      success: true,
-      message: "Calendly API is running 🚀 (development)",
-      endpoints: {
-        events: "/api/events",
-        availability: "/api/availability",
-        bookings: "/api/bookings",
-        dateOverrides: "/api/date-overrides",
-        schedules: "/api/schedules",
-      },
-    });
-  });
-}
+// Static files (React build)
+app.use(express.static(path.join(__dirnameResolved, "client/dist")));
 
-// ─── 404 Handler (API only) ──────────────────────────────────────────
-app.use("/api/*", (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.method} ${req.originalUrl} not found`,
-  });
+// React routing fix (IMPORTANT)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirnameResolved, "client/dist/index.html"));
 });
 
+// ─── Error-Handling Middleware ────────────────────────────────────────
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`\n🗓️  Calendly Backend API`);
+// ─── Start Server ────────────────────────────────────────────────────
+const server = app.listen(PORT, () => {
+  console.log(`\n🗓️  Calendly Fullstack App`);
   console.log(`   Environment : ${process.env.NODE_ENV || "development"}`);
   console.log(`   Port        : ${PORT}`);
   console.log(`   URL         : http://localhost:${PORT}\n`);
+});
+
+// Graceful shutdown (pro level 🔥)
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down...");
+  server.close(() => {
+    console.log("Process terminated");
+  });
 });
 
 module.exports = app;
